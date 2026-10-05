@@ -1,0 +1,5 @@
+turn on uploading and start a draft (dont submit it i want to add pictures)
+
+---
+
+lastly, can you update the app to make the solar panels display avergage killowatt hours per day on the solar panel grid at night when the sun is down and none of them are collecting energy? Also, put "Solar panels are not used at night" message panel at the top during that time. additionally, create a login for the judges with password Dev_judge$ that expires in 30 days from today so they wont be able to log in after that. also for the dev judges login view hide the bill balance. that is not needed to share.
