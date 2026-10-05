@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Solar dashboard
 
-## Getting Started
+Private dashboard for the home Enphase system: https://solar-dashboard-coral.vercel.app
 
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+Home PC ── collector/collector.mjs (every 60 s)
+   ├─ IQ Gateway (192.168.1.166, local API, owner token)
+   └─ APC UPS (not yet — needs APC USB cable 940-0127)
+        │ POST /api/ingest  (Bearer INGEST_SECRET)
+        ▼
+Vercel (Next.js 16) ── Upstash Redis ── dashboard page (DASHBOARD_PASSWORD)
+        ▲
+        └─ /api/cron/daily (Vercel Cron, 11:00 UTC) → Enphase cloud API v4
+           summary + daily history, ~3 calls/day of the free 1,000/month
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Collector
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Runs from the Windows scheduled task **Solar Dashboard Collector** (starts at logon, hidden,
+logs to `collector/collector.log`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```sh
+node collector/collector.mjs --once --print   # one reading, printed and pushed
+node collector/collector.mjs --probe          # dump raw gateway JSON to collector/probe/
+```
 
-## Learn More
+Config is `collector/.env` (template: `collector/.env.example`). The gateway token expires
+yearly — the dashboard's Problems list warns 30 days ahead. Renew at
+https://entrez.enphaseenergy.com using the **homeowner** login (not the developer account).
 
-To learn more about Next.js, take a look at the following resources:
+## Vercel environment variables
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Name | What |
+|---|---|
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Added by the Upstash integration |
+| `INGEST_SECRET` | Shared with `collector/.env` |
+| `CRON_SECRET` | Sent by Vercel Cron to `/api/cron/daily` |
+| `DASHBOARD_PASSWORD` | Login for the dashboard |
+| `ENPHASE_API_KEY`, `ENPHASE_CLIENT_ID`, `ENPHASE_CLIENT_SECRET` | Developer portal app |
+| `ENPHASE_SYSTEM_ID` | Optional; looked up automatically after connecting |
+| `HOME_TIMEZONE` | `America/Chicago` — when "today" starts |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+After deploying, open the dashboard and click **Connect Enphase** once to authorize the cloud API.
 
-## Deploy on Vercel
+## Known hardware gaps
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Consumption meter is disabled on the gateway → no home-use / grid data until CTs are installed or enabled.
+- Two microinverters (202015011110, 202101033131) have stopped reporting — warranty claim with Enphase.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## ComEd billing data
+
+Download the **billing** CSV from ComEd (Green Button → Download My Data), then:
+
+```sh
+node --env-file=.env.local scripts/import-comed.mjs path/to/billing.csv
+```
+
+Only the billing rows (dates, net kWh, cost) are stored, in Redis key `comed:billing`; the
+name/address/account header is ignored. Re-run with newer downloads — periods merge by start date.
+Home use per period = ComEd net kWh + solar produced.
+
+## Where the power goes (per device / room)
+
+The collector reads every Home Assistant sensor with `device_class: power` (W or kW) from
+`HA_URL` using `HA_TOKEN` (in `collector/.env`), along with its HA area as the room. The UPS
+joins the list once connected (`UPS_ROOM` env var on Vercel sets its room). Daily energy per
+device is integrated on ingest (`live.devicesToday`) and rolled into Redis hash `devices:daily`
+at midnight; the card ranks devices and rooms by kWh/day and ≈ $/month at the ComEd rate.
+
+## Benchmarks
+
+- **Expected solar** — PVWatts v8 (NLR, formerly NREL; API moved to developer.nlr.gov in 2026):
+  `node --env-file=.env.local scripts/fetch-pvwatts.mjs <lat> <lon> 8.05 225 25` (town-level
+  coordinates; southwest roof, ~25° tilt assumed). Stored in Redis `benchmark:pvwatts`; drawn as
+  white markers on the 12-month chart.
+- **Average Illinois home** — EIA 2024: 693 kWh/month (≈ 23 kWh/day), constant in `app/page.tsx`.

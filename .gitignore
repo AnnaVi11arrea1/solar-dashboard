@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# allow the templates; keep raw gateway dumps (they contain serial numbers) local
+!.env.example
+/collector/probe/
+
+.vercel
+.env*
+/collector/collector.log
+!.env.example
