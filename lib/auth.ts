@@ -15,18 +15,20 @@ export function safeEqual(a: string, b: string) {
 
 export const SESSION_COOKIE = "sd_session";
 
-// Read-only login for the DEV challenge judges (JUDGE_PASSWORD on Vercel). It
-// stops working at the end of Nov 3, 2026, Chicago time, 30 days after launch.
+// Read-only login for the DEV challenge judges. Only the password's SHA-256 is
+// kept here; it stops working at the end of Nov 3, 2026, Chicago time.
 export const JUDGE_UNTIL = Date.parse("2026-11-04T06:00:00Z");
-const judgePassword = () => (Date.now() < JUDGE_UNTIL ? process.env.JUDGE_PASSWORD || "" : "");
+const JUDGE_SHA256 = "01daf1f921cdb316c0f56c8646d8478b33c6ce6ee43e6964398758ebe86d7f4d";
+const judgeOpen = () => Date.now() < JUDGE_UNTIL;
 
 export type Role = "owner" | "judge";
 
 // The session cookie is a hash of the dashboard password, so changing the
 // password signs everyone out.
-export async function sessionValue(password: string) {
-  const data = new TextEncoder().encode(`solar-dashboard:${password}`);
-  const hash = await crypto.subtle.digest("SHA-256", data);
+export const sessionValue = (password: string) => sha256(`solar-dashboard:${password}`);
+
+async function sha256(text: string) {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
@@ -36,8 +38,7 @@ export async function sessionRole(cookie: string): Promise<Role | null> {
   const password = process.env.DASHBOARD_PASSWORD;
   if (!password) return "owner";
   if (safeEqual(cookie, await sessionValue(password))) return "owner";
-  const judge = judgePassword();
-  if (judge && safeEqual(cookie, await sessionValue(`judge:${judge}`))) return "judge";
+  if (judgeOpen() && safeEqual(cookie, await sessionValue(`judge:${JUDGE_SHA256}`))) return "judge";
   return null;
 }
 
@@ -45,7 +46,6 @@ export async function sessionRole(cookie: string): Promise<Role | null> {
 export async function login(given: string): Promise<{ role: Role; cookie: string } | null> {
   const password = process.env.DASHBOARD_PASSWORD || "";
   if (password && safeEqual(given, password)) return { role: "owner", cookie: await sessionValue(password) };
-  const judge = judgePassword();
-  if (judge && safeEqual(given, judge)) return { role: "judge", cookie: await sessionValue(`judge:${judge}`) };
+  if (judgeOpen() && safeEqual(await sha256(given), JUDGE_SHA256)) return { role: "judge", cookie: await sessionValue(`judge:${JUDGE_SHA256}`) };
   return null;
 }
