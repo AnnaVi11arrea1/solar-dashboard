@@ -1,4 +1,21 @@
 {
   "enabled": true,
-  "vercel": true
+  "vercel": true,
+  "redaction": {
+    "betterleaks": {
+      "enabled": true
+    },
+    "goredact": {
+      "enabled": true
+    },
+    "pii": {
+      "enabled": true,
+      "email": true,
+      "phone": true,
+      "address": true
+    },
+    "custom_redactions": {
+      "env_secret_assignment": "\\b[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|APIKEY|PRIVATE_KEY)[A-Z0-9_]*\"?\\s*[=:]\\s*[\"']?[^\\s\"',]{8,}"
+    }
+  }
 }
