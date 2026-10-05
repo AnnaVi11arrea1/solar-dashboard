@@ -2,12 +2,13 @@ import { connection } from "next/server";
 import { AutoRefresh } from "./components/AutoRefresh";
 import { Bars, DayLine } from "./components/charts";
 import { getPvBenchmark, getDeviceHistory, getDaily, getHits, getLifetime, getLive, getSeries, getSummary, getTokens, dayKey, TZ } from "@/lib/store";
-import { bestDay, dailyWh, lastNDays, lastNMonths } from "@/lib/history";
+import { bestDay, dailyWh, lastNDays, lastNMonths, todaySolarWh } from "@/lib/history";
 import { findProblems, isSilent, type Severity } from "@/lib/problems";
 import { MONTHLY_BUDGET } from "@/lib/enphase";
 import type { Panel } from "@/lib/types";
 import { placePanels } from "@/lib/layout";
-import { effectiveRate, getBilling, homeUse, type HomeUsePeriod } from "@/lib/billing";
+import { effectiveRate, getBilling, homeUse, IL_AVG_KWH_PER_DAY, type HomeUsePeriod } from "@/lib/billing";
+import { getBriefing, type Briefing } from "@/lib/briefing";
 import { PowerBreakdown } from "./components/PowerBreakdown";
 
 const CO2_KG_PER_KWH = 0.39; // approximate US grid average
@@ -34,27 +35,21 @@ async function load() {
   await connection();
   const now = Date.now();
   const today = dayKey(now);
-  const [live, series, local, lifetime, summary, tokens, hits, billing, deviceHistory, pv] = await Promise.all([
-    getLive(), getSeries(today), getDaily(), getLifetime(), getSummary(), getTokens(), getHits(), getBilling(), getDeviceHistory(), getPvBenchmark(),
+  const [live, series, local, lifetime, summary, tokens, hits, billing, deviceHistory, pv, briefing] = await Promise.all([
+    getLive(), getSeries(today), getDaily(), getLifetime(), getSummary(), getTokens(), getHits(), getBilling(), getDeviceHistory(), getPvBenchmark(), getBriefing(),
   ]);
-  return { now, today, live, series, local, lifetime, summary, tokens, hits, billing, deviceHistory, pv };
+  return { now, today, live, series, local, lifetime, summary, tokens, hits, billing, deviceHistory, pv, briefing };
 }
 
 const ICON: Record<Severity, string> = { critical: "✕", serious: "!", warning: "▲", info: "i" };
 
 export default async function Home({ searchParams }: PageProps<"/">) {
   const params = await searchParams;
-  const { now, today, live, series, local, lifetime, summary, tokens, hits, billing, deviceHistory, pv } = await load();
+  const { now, today, live, series, local, lifetime, summary, tokens, hits, billing, deviceHistory, pv, briefing } = await load();
   const cloudConfigured = !!(process.env.ENPHASE_CLIENT_ID && process.env.ENPHASE_API_KEY);
 
   const fresh = live && now - live.at < 5 * 60_000 && live.day === today;
-  // The local count only covers time since the collector first ran today, so
-  // take the Enphase cloud figure when it is from today and larger.
-  const localToday = live && live.day === today && live.solarWhLifetime != null && live.dayBaseSolarWh != null
-    ? live.solarWhLifetime - live.dayBaseSolarWh
-    : null;
-  const cloudToday = summary && dayKey(summary.fetchedAt) === today ? summary.energy_today ?? null : null;
-  const todayWh = localToday == null ? cloudToday : Math.max(localToday, cloudToday ?? 0);
+  const todayWh = todaySolarWh(live, summary, today);
   const daily = dailyWh(lifetime, local, today, todayWh);
   const days = lastNDays(daily, today, 30);
   // Expected production per month (PVWatts); the current month is prorated to today.
@@ -73,7 +68,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const solarNow = fresh ? live.solarW : summary?.current_power ?? null;
 
   const panels = live?.panels ?? [];
-  const working = panels.filter((p) => !isSilent(p)).length;
+  const panelsAsOf = live?.panelsAt ?? live?.at ?? now;
+  const working = panels.filter((p) => !isSilent(p, panelsAsOf)).length;
   const usage = homeUse(billing, daily);
   const problems = findProblems({ live, tokens, summary, hits, cloudConfigured, usage });
   const dayStart = midnight(today);
@@ -107,6 +103,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         </div>
       </section>
 
+      {briefing && <BriefingCard briefing={briefing} now={now} />}
+
       <section className="card">
         <h2>Problems {problems.length > 0 && <span className="count">{problems.length}</span>}</h2>
         {problems.length === 0 ? (
@@ -131,7 +129,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         <section className="card">
           <h2>Panels</h2>
           <p className="sub">Roof layout · energy today per microinverter (like the Enphase app) with watts right now · brighter = producing closer to its best right now</p>
-          <PanelGrid panels={panels} whToday={live?.day === today ? live.panelsWhToday ?? {} : {}} />
+          <PanelGrid panels={panels} asOf={panelsAsOf} whToday={live?.day === today ? live.panelsWhToday ?? {} : {}} />
         </section>
       )}
 
@@ -220,9 +218,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   );
 }
 
-// EIA 2024: average Illinois residential customer used 693 kWh/month.
-const IL_AVG_KWH_PER_DAY = (693 * 12) / 365;
-
 const shortDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 const monthYear = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
 const pct = (a: number, b: number) => `${a >= b ? "+" : "−"}${Math.abs(Math.round((a / b - 1) * 100))}%`;
@@ -272,6 +267,21 @@ function HomeUse({ usage }: { usage: HomeUsePeriod[] }) {
   );
 }
 
+// Written on the home PC by a local open-weight model (collector/collector.mjs).
+function BriefingCard({ briefing, now }: { briefing: Briefing; now: number }) {
+  const stale = now - briefing.at > 36 * 3600_000;
+  return (
+    <section className="card">
+      <h2>Dad’s briefing</h2>
+      <p className="sub">
+        In plain English · written {ago(briefing.at)} by {briefing.model}, running locally on the home PC
+        {stale ? " · out of date — is the collector running?" : ""}
+      </p>
+      <div className="briefing">{briefing.text}</div>
+    </section>
+  );
+}
+
 function Tile({ label, value }: { label: string; value: string }) {
   return (
     <div className="tile">
@@ -283,7 +293,7 @@ function Tile({ label, value }: { label: string; value: string }) {
 
 // Roof layout (lib/layout.ts). Brightness of each panel's glow = output relative
 // to that microinverter's own best report today.
-function PanelGrid({ panels, whToday }: { panels: Panel[]; whToday: Record<string, number> }) {
+function PanelGrid({ panels, asOf, whToday }: { panels: Panel[]; asOf: number; whToday: Record<string, number> }) {
   const rows = placePanels(panels);
   const cols = Math.max(...rows.map((r) => r.length));
   return (
@@ -292,7 +302,7 @@ function PanelGrid({ panels, whToday }: { panels: Panel[]; whToday: Record<strin
         {rows.flatMap((row, r) =>
           row.map((p, c) => {
             if (!p) return <div key={`empty-${r}-${c}`} className="panel empty" aria-hidden />;
-            const silent = isSilent(p);
+            const silent = isSilent(p, asOf);
             const lvl = silent || p.max <= 0 ? 0 : Math.min(1, p.w / p.max);
             const title = silent
               ? `${p.sn} — not reporting${p.at ? ` since ${new Date(p.at * 1000).toLocaleDateString("en-US", { timeZone: TZ })}` : ""}`

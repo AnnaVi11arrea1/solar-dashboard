@@ -76,6 +76,7 @@ p { margin: 0; }
 .muted, .sub, .label { color: var(--muted); }
 .top .muted { font-family: var(--font-num); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
 .sub { font-size: 14px; margin: 4px 0 14px; }
+.briefing { white-space: pre-line; line-height: 1.6; font-size: 16px; max-width: 72ch; }
 
 /* cut-corner neon cards */
 .card {

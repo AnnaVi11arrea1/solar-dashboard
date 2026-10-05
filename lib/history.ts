@@ -1,4 +1,5 @@
-import type { CloudLifetime } from "./types";
+import type { CloudLifetime, CloudSummary, Live } from "./types";
+import { dayKey } from "./store";
 
 // Day strings are YYYY-MM-DD in the home timezone; date math happens in UTC on
 // those strings so DST never shifts a day.
@@ -15,6 +16,16 @@ export function dailyWh(cloud: CloudLifetime | null, local: Record<string, numbe
   for (const [day, wh] of Object.entries(local)) if (wh > 0 || !out.has(day)) out.set(day, Number(wh));
   if (todayWh != null) out.set(today, todayWh);
   return out;
+}
+
+// The local count only covers time since the collector first ran today, so
+// take the Enphase cloud figure when it is from today and larger.
+export function todaySolarWh(live: Live | null, summary: CloudSummary | null, today: string) {
+  const local = live && live.day === today && live.solarWhLifetime != null && live.dayBaseSolarWh != null
+    ? live.solarWhLifetime - live.dayBaseSolarWh
+    : null;
+  const cloud = summary && dayKey(summary.fetchedAt) === today ? summary.energy_today ?? null : null;
+  return local == null ? cloud : Math.max(local, cloud ?? 0);
 }
 
 const label = (day: string, opts: Intl.DateTimeFormatOptions) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });

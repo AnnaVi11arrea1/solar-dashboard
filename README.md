@@ -4,6 +4,7 @@ Private dashboard for the home Enphase system: https://solar-dashboard-coral.ver
 
 ```
 Home PC ── collector/collector.mjs (every 60 s)
+   ├─ Ollama (gemma3:4b, local) ── Dad's briefing every 6 h
    ├─ IQ Gateway (192.168.1.166, local API, owner token)
    └─ APC UPS (not yet — needs APC USB cable 940-0127)
         │ POST /api/ingest  (Bearer INGEST_SECRET)
@@ -66,6 +67,22 @@ The collector reads every Home Assistant sensor with `device_class: power` (W or
 joins the list once connected (`UPS_ROOM` env var on Vercel sets its room). Daily energy per
 device is integrated on ingest (`live.devicesToday`) and rolled into Redis hash `devices:daily`
 at midnight; the card ranks devices and rooms by kWh/day and ≈ $/month at the ComEd rate.
+
+## Dad's briefing (local AI)
+
+Every `BRIEFING_HOURS` (default 6) the collector GETs a small set of facts from
+`/api/briefing` (solar today/month vs expected, latest bill, problems), has a local
+open-weight model explain them in plain English through Ollama on the home PC, and
+POSTs the text back (Redis key `briefing`). No cloud AI: the household's data only
+goes to the model on this PC, and it costs nothing to run.
+
+```sh
+ollama pull gemma3:4b                          # once
+node collector/collector.mjs --briefing        # write one now and print it
+```
+
+Set `OLLAMA_MODEL` in `collector/.env` to turn it on (`OLLAMA_URL` defaults to
+`http://localhost:11434`). Any Ollama model works; swap it by changing that one line.
 
 ## Benchmarks
 

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, safeEqual, sessionValue } from "@/lib/auth";
 
 // Password gate for the dashboard (only when DASHBOARD_PASSWORD is set).
-// The collector and the cron job authenticate with their own bearer secrets.
+// The collector (ingest, briefing) and the cron job authenticate with their own bearer secrets.
 export async function proxy(req: NextRequest) {
   const password = process.env.DASHBOARD_PASSWORD;
   if (!password) return NextResponse.next();
@@ -15,5 +15,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|api/login|api/ingest|api/cron|_next/static|_next/image|favicon.ico|icon).*)"],
+  matcher: ["/((?!login|api/login|api/ingest|api/briefing|api/cron|_next/static|_next/image|favicon.ico|icon).*)"],
 };

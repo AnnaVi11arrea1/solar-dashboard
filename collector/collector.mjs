@@ -4,6 +4,7 @@
 //   node collector.mjs           run forever
 //   node collector.mjs --once    collect + push one snapshot, then exit
 //   node collector.mjs --probe   dump raw gateway responses to ./probe/ (no push)
+//   node collector.mjs --briefing  write + push one "Dad's briefing" with Ollama, then exit
 //
 // Config lives in collector/.env (see .env.example). No npm dependencies.
 
@@ -201,6 +202,58 @@ async function haDevices() {
     .filter((d) => d.w != null);
 }
 
+// ---- Dad's briefing: a local open-weight model explains the numbers ------
+// The dashboard hands over a small set of facts; Ollama on this PC turns them
+// into a plain-English note. No cloud AI involved, nothing to pay for.
+
+const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL; // e.g. gemma3:4b; unset = no briefing
+const BRIEFING_MS = Number(process.env.BRIEFING_HOURS || 6) * 3600_000;
+const BRIEFING_URL = INGEST_URL && new URL("/api/briefing", INGEST_URL).href;
+
+const BRIEFING_PROMPT = `You write a short daily note for a homeowner about his rooftop solar panels and his electric bill. He is not technical. He wants to know: is the solar working, why is the bill what it is, and is there anything he needs to do.
+
+Rules:
+- Use ONLY the facts in the JSON you are given. Never invent numbers, causes, or devices. If something is null or missing, don't mention it.
+- Plain words. Say "panel" or "microinverter (the small box under each panel)" and explain any term once. No jargon like "kWh" without saying it means units of electricity on the bill.
+- Start with one sentence on how things look overall. Then 3 to 5 short lines starting with "- ", most important first: anything that needs action, then the bill, then solar production.
+- Problems with severity "critical" or "warning" come first and say what to do. Ignore "info" problems unless nothing else is wrong.
+- Under 150 words. Friendly and calm, like a helpful family member. No greeting, no sign-off, no markdown other than the "- " lines.`;
+
+const ollamaChat = async (facts) => {
+  const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      stream: false,
+      options: { temperature: 0.3 },
+      messages: [
+        { role: "system", content: BRIEFING_PROMPT },
+        { role: "user", content: JSON.stringify(facts) },
+      ],
+    }),
+    signal: AbortSignal.timeout(5 * 60_000), // first run loads the model into memory
+  });
+  if (!res.ok) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  // Thinking models (qwen3) may wrap their reasoning in <think> tags.
+  return (await res.json()).message.content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+};
+
+async function briefing() {
+  const auth = { Authorization: `Bearer ${INGEST_SECRET}` };
+  const factsRes = await fetch(BRIEFING_URL, { headers: auth });
+  if (!factsRes.ok) throw new Error(`briefing facts ${factsRes.status}`);
+  const text = await ollamaChat(await factsRes.json());
+  const res = await fetch(BRIEFING_URL, {
+    method: "POST",
+    headers: { ...auth, "Content-Type": "application/json" },
+    body: JSON.stringify({ text, model: OLLAMA_MODEL }),
+  });
+  if (!res.ok) throw new Error(`briefing push ${res.status}`);
+  return text;
+}
+
 // ---- main loop -----------------------------------------------------------
 
 let tick = 0;
@@ -254,6 +307,9 @@ async function once() {
 
 if (args.has("--probe")) {
   await probe();
+} else if (args.has("--briefing")) {
+  if (!OLLAMA_MODEL || !BRIEFING_URL || !INGEST_SECRET) die("OLLAMA_MODEL, INGEST_URL and INGEST_SECRET are needed for --briefing");
+  console.log(await briefing());
 } else if (args.has("--once")) {
   await once();
 } else {
@@ -269,6 +325,13 @@ if (args.has("--probe")) {
   };
   await run();
   setInterval(run, INTERVAL_MS);
+  if (OLLAMA_MODEL) {
+    const write = () => briefing()
+      .then(() => console.log(`${new Date().toLocaleString()}  briefing written by ${OLLAMA_MODEL}`))
+      .catch((e) => console.error(`${new Date().toLocaleString()}  briefing: ${e.message}`));
+    write();
+    setInterval(write, BRIEFING_MS);
+  }
 }
 
 // ---- helpers -------------------------------------------------------------

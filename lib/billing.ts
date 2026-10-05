@@ -13,6 +13,9 @@ export type HomeUsePeriod = BillPeriod & {
   lastYear?: { homeKwh: number; perDay: number; cost: number };
 };
 
+// EIA 2024: average Illinois residential customer used 693 kWh/month.
+export const IL_AVG_KWH_PER_DAY = (693 * 12) / 365;
+
 export const getBilling = async () => (await redis().get<BillPeriod[]>("comed:billing")) ?? [];
 
 const dayDiff = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400_000);

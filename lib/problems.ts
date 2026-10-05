@@ -27,8 +27,11 @@ export function median(xs: number[]) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-export function isSilent(p: Panel) {
-  return p.communicating === false || p.producing === false || !p.at;
+// Every microinverter stops producing and communicating after sunset, so the
+// gateway's flags can't tell a dead unit from nightfall. Dead = no report for a
+// day, measured from when the panel data was read (asOf, ms).
+export function isSilent(p: Panel, asOf: number) {
+  return !p.at || asOf - p.at * 1000 > DAY;
 }
 
 export function findProblems(opts: {
@@ -51,14 +54,15 @@ export function findProblems(opts: {
   }
 
   if (live?.panels?.length) {
-    const silent = live.panels.filter(isSilent);
+    const asOf = live.panelsAt ?? live.at;
+    const silent = live.panels.filter((p) => isSilent(p, asOf));
     for (const p of silent) {
       const since = p.at ? `since ${fmtDate(p.at * 1000)} (${daysAgo(p.at * 1000)} days)` : "and has never reported";
       out.push({
         id: `silent-${p.sn}`,
         severity: "critical",
         title: `Microinverter ${p.sn} is not reporting`,
-        detail: `Not producing or communicating ${since}.${p.status.length ? ` Gateway flags: ${p.status.map((s) => s.split(".").pop()).join(", ")}.` : ""}`,
+        detail: `No report ${since}.${p.status.length ? ` Gateway flags: ${p.status.map((s) => s.split(".").pop()).join(", ")}.` : ""}`,
         action: "Covered by Enphase's microinverter warranty — contact Enphase support with this serial number.",
       });
     }
@@ -67,7 +71,7 @@ export function findProblems(opts: {
     // not instant watts (evening shade on a few panels is normal). Needs a
     // decent amount of sun first so a cloudy morning can't trigger it.
     const wh = live.panelsWhToday ?? {};
-    const healthy = live.panels.filter((p) => !isSilent(p) && wh[p.sn] != null);
+    const healthy = live.panels.filter((p) => !isSilent(p, asOf) && wh[p.sn] != null);
     const med = median(healthy.map((p) => wh[p.sn]));
     if (med >= 600) {
       for (const p of healthy) {
@@ -101,7 +105,7 @@ export function findProblems(opts: {
   }
   if (summary?.status && summary.status !== "normal") {
     const known = CLOUD_STATUS[summary.status];
-    const silentCount = live?.panels?.filter(isSilent).length ?? 0;
+    const silentCount = live?.panels?.filter((p) => isSilent(p, live.panelsAt ?? live.at)).length ?? 0;
     // "micro" just echoes the dead microinverters already listed above.
     const echo = summary.status === "micro" && silentCount > 0;
     out.push({
