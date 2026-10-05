@@ -37,6 +37,7 @@ https://entrez.enphaseenergy.com using the **homeowner** login (not the develope
 | `INGEST_SECRET` | Shared with `collector/.env` |
 | `CRON_SECRET` | Sent by Vercel Cron to `/api/cron/daily` |
 | `DASHBOARD_PASSWORD` | Login for the dashboard |
+| `JUDGE_PASSWORD` | Read-only judge login (bill amounts hidden, no Enphase controls); stops working after Nov 3, 2026 (`JUDGE_UNTIL` in `lib/auth.ts`) |
 | `ENPHASE_API_KEY`, `ENPHASE_CLIENT_ID`, `ENPHASE_CLIENT_SECRET` | Developer portal app |
 | `ENPHASE_SYSTEM_ID` | Optional; looked up automatically after connecting |
 | `HOME_TIMEZONE` | `America/Chicago` — when "today" starts |

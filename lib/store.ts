@@ -26,6 +26,7 @@ const K = {
   series: (day: string) => `series:${day}`,
   daily: "daily:solarWh", // hash day -> Wh produced (from the local gateway)
   deviceDaily: "devices:daily", // hash day -> DeviceDay (written once, when the day rolls over)
+  panelDaily: "panels:daily", // hash day -> { serial: Wh } (written once, when the day rolls over)
   tokens: "enphase:tokens",
   summary: "enphase:summary",
   lifetime: "enphase:lifetime",
@@ -48,6 +49,7 @@ export async function ingest(snap: Snapshot) {
     day,
     dayBaseSolarWh: newDay ? (prev?.solarWhLifetime ?? snap.solarWhLifetime) : prev.dayBaseSolarWh,
     dayBaseHomeWh: newDay ? (prev?.homeWhLifetime ?? snap.homeWhLifetime) : prev.dayBaseHomeWh,
+    dayStartedDark: newDay ? (snap.solarW ?? 0) < 10 : prev.dayStartedDark,
   };
   live.devices = measuredDevices(snap);
   live.devicesToday = accumulate(newDay ? {} : prev?.devicesToday ?? {}, prev, live.devices, snap.at);
@@ -71,6 +73,7 @@ export async function ingest(snap: Snapshot) {
   if (newDay) p.expire(K.series(day), 60 * 60 * 24 * 8);
   if (live.solarWhLifetime != null && live.dayBaseSolarWh != null) p.hset(K.daily, { [day]: Math.round(live.solarWhLifetime - live.dayBaseSolarWh) });
   if (newDay && prev?.devicesToday && Object.keys(prev.devicesToday).length) p.hset(K.deviceDaily, { [prev.day]: prev.devicesToday });
+  if (newDay && prev?.dayStartedDark && prev.panelsWhToday && Object.keys(prev.panelsWhToday).length) p.hset(K.panelDaily, { [prev.day]: prev.panelsWhToday });
   await p.exec();
   return live;
 }
@@ -110,6 +113,10 @@ function accumulatePanels(today: Record<string, number>, prev: Live | null, pane
 
 export async function getDeviceHistory() {
   return (await redis().hgetall<Record<string, DeviceDay>>(K.deviceDaily)) ?? {};
+}
+
+export async function getPanelHistory() {
+  return (await redis().hgetall<Record<string, Record<string, number>>>(K.panelDaily)) ?? {};
 }
 
 // PVWatts expected production (scripts/fetch-pvwatts.mjs).

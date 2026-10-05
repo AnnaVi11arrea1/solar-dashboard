@@ -41,6 +41,9 @@ export type Live = Snapshot & {
   // Per-microinverter energy today (Wh), integrated from the ~5-minute panel reports.
   panelsWhToday?: Record<string, number>;
   panelsAt?: number; // ms of the last snapshot that carried panel data
+  // The day's first reading came before sunrise, so panelsWhToday covers the
+  // whole day (false on a day the collector started mid-morning).
+  dayStartedDark?: boolean;
 };
 
 // One point per ingest in today's series: [ms, solarW, homeW, gridW, upsW]
