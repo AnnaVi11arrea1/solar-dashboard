@@ -2,7 +2,7 @@
   "cli_version": "0.11.3",
   "checkpoint_id": "01M44XBRZJH6Y03Q0MHWQZZT94",
   "strategy": "manual-commit",
-  "checkpoints_count": 15,
+  "checkpoints_count": 25,
   "files_touched": [
     "README.md",
     "app/api/briefing/route.ts",
@@ -37,13 +37,20 @@
       "compact_transcript": "/2/transcript.jsonl",
       "content_hash": "/2/content_hash.txt",
       "prompt": "/2/prompt.txt"
+    },
+    {
+      "metadata": "/3/metadata.json",
+      "transcript": "/3/full.jsonl",
+      "compact_transcript": "/3/transcript.jsonl",
+      "content_hash": "/3/content_hash.txt",
+      "prompt": "/3/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 156,
-    "cache_creation_tokens": 202157,
-    "cache_read_tokens": 6756243,
-    "output_tokens": 40772,
-    "api_call_count": 76
+    "input_tokens": 242,
+    "cache_creation_tokens": 282126,
+    "cache_read_tokens": 10118968,
+    "output_tokens": 56339,
+    "api_call_count": 117
   }
 }
