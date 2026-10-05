@@ -1,0 +1,35 @@
+this project is going to be for an upcoming dev challenge
+
+---
+
+I am interested in the build for a friend challenge - ive written up my experience along the way. Can I share that with you? Also - I've chosen to use Entire as my partner of choice and have that nearly working.
+
+---
+
+<pasted_content id="26b7">
+I got an idea for this project at the last minute. I thought about my dad recently complaining about how high the electric bill was. Most of us know the feeling, the impending doom of being the culprit since you are the 'computer person'. I considered that annoyance. (We'll see about that, Dad!) I set out on a mission to prove that I was not a sole contributor to the high electric bills. So I built this app for my dad, so that he would have a resource to understand his electric bill. But this story - and app build - goes much deeper than just a re-invented utility app UI. We are integrating local government data to compare amongst the neighbors, pulling in actual usage data from the electric company, and pairing it with the solar panel technology so we can get a real birds-eye view of what in the heck is happening. I'll be honest, it turned into chaos.
+
+So in the app provide my the solar tech company, they give you a dashboard of your site, panels, production, and a nice grid-view that is supposed to mirror the situation that is happening on your roof. Everything was all fun and games connecting and api here, pulling in a spreadsheet there. The solar tech company even had a free developer portal to use the api. That was fun and exciting to discover. With dad's approval I integrated with no problem. Then I started to dig deeper than anticipated. I learned that there was an optional consumption meter our solar panels could of had, but that was never installed. I learned that there are also devices you can install on your circuit breaker to read what circuit (or room, like my brothers... cough cough) is using what amount of power at any given time. Something cool to maybe have in the future. 
+
+As I pulled in my information from the solar tech company's app, I noticed that two of the microinverters were bad. This was something we already knew. But what was alarming was when my app started alerting me that some random solar panels were underperforming. I was shocked, noting that an additional 4 panels were reporting between 11% - 30% of their regular generation. They were random, not localized to one area. Confused, I stepped outside to see if a squirrel had built a house or something. Nope, nothing strange, just neatly positioned solar panels on my roof... wait. They are going up the roof in a vertical orientation? That's not what they look like on my grid. I double checked. Panicked and confused I went in and out of my house several times, standing on chairs, taking pictures, and showing my dad. Dad! They are not horizontal! 
+
+It took some convincing because it was a difficult angle but I think I finally proved the orientation. Why does this matter? Because in the application I was making - and in the original tech company's official app, they are oriented as horizontal. So, the orientation was a bit off, so what? Well, I also noticed that there was two long rows and then a short row in the app. what was actually on the roof was long-short-long. This definiatly does not match. An actual, bonified, descrepeniy. 
+
+Allow me to explain further.
+
+Somewhere between 2 and 3 years ago we had some storms rip through the neighborhood. Damage was caused to our roof. Fortunatly for us, insurance covered everything. But in order to fix the roof you have to take down the solar panels. We had repairs done to the solar panels while they were down and the roof was being redone. When the work was done the solar panels were reinstalled and everything was fine. This was an 18 month process, since insurance policies drag things out. Shortly after this was completed, the two microinverters stopped responding, so that has been like that for a while. 
+
+But I couldn't figure out why some random panels were underperforming. I hypothesized: "We cut down the trees closest the house so it can't be the squirrels again, we did have wildfire smoke and a dust storm, and paired with bird poop who knows what the story is up there." Things clicked when I remembered that the work was done to the roof and the orientation and placement wasn't lining up. Whoever installed the solar panels must have forgot to rebuild the area, and panels are reporting being in places they are not. To further justify my idea, I went outside to verify that shade from a tree was landing on some of the panels. This was confirmed, however, the panels that were being covered were not the ones that were performing poorly according to the diagram on the tech company's app. All completly wrong and off. 
+
+By current blocker is that I need to call the company and ask why all the solar panels are improperly oriented and placed randomly. This could cost the consumer depending on what technician comes to the house to do the "fixing". If I show the technician that the second panel in the first row is the one with the issue, and he fixes it, stating "We will see it working tomorrow" or whatever, and it in fact is not fixed, how can I prove anything? This could be a big expense, depending on many factors. I need to be certain which panel needs fixing before I start directing people. Telling people "It's that one!" when its actually the one next to it could lead to alot of upset people and money gone - making all of this nearly pointless. So then. I wait for that. 
+
+In any case, I have been setting up my app to work in unison with home assist, and I will be installing smart plugs and sensors to get a more accurate picture of what the hosue is doing, giving my dad a better understanding of energy being used, by whom, and give him ideas about what might need optimization. Also in my defense, I noted that the bill went up after the utility price increased 12% for all residents. Thats a steep step! paired with microinverters in question and a full house, this sheds a bit more light on the situation. I will however be contacting our solar panel company and having a serious word.
+</pasted_content id="26b7">
+
+---
+
+Yes! I have ollama!
+
+---
+
+lets make sure that entire is solid, i want to be able to search for key parts during this build process, and have it sxplained why it was done - whats the best path?
